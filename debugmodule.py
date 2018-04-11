@@ -20,14 +20,14 @@ def DumpStr(data):
     file.write(data)
     file.close()
 
+
 def RestoreParis(defaultReturnDict):
     """Load a set of key/value pairs from the plain text debugFile"""
 
     data = ""
     try:
-        file = open(debugFile, "r")
-        data = file.read()
-        file.close()
+        with open(debugFile, "r") as file:
+                data = file.read()
     except  IOError:
         stdout.write("No file found\n\n")
         return defaultReturnDict
@@ -45,3 +45,20 @@ def RestoreParis(defaultReturnDict):
         pairs[kv[0]] = kv[1]
 
     return pairs
+
+
+def ReadFrom(location):
+    data = ""
+    try:
+        with open(location, "r") as file:
+                data = file.read()
+    except  IOError:
+        stdout.write("No file found\n\n")
+        return ""
+
+    return data
+
+
+def WriteTo(location, data):
+    with open(location, "w") as file:
+                file.write(data)

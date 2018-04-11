@@ -6,11 +6,12 @@ import requests
 import json
 import re
 from itertools import ifilter
+import base64
 
 # program specific settings, change these
 from programcredentials import credentials
 # program debug module
-from debugmodule import DumpStr, RestoreParis
+import debugmodule
 
 class program(object):
     def __init__(self):
@@ -49,7 +50,7 @@ class program(object):
                     self.PrintOptions()
                     continue
                 if cmds[0] == "restoreparis":
-                    self.paris = RestoreParis(self.paris)
+                    self.paris = debugmodule.RestoreParis(self.paris)
                     self.SaveToFile()
                     continue
 
@@ -108,12 +109,10 @@ class program(object):
         body = {
             "jsonrpc": "2.0",
             "method": "generateStrings",
-            "params": [
-                self.creds.randomAPIkey,
+            "params": [self.creds.randomAPIkey,
                 3,
                 16,
-                "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ123456789"
-            ],
+                "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ123456789"],
             "id": 42
         }
         response = requests.post(self.randomURL, data=json.dumps(body), headers=head).json()
@@ -123,29 +122,28 @@ class program(object):
         except  KeyError:
             return "error"
 
+
     def Encrypt(self, data):
         """Sensitive data comes in, jumbled junk comes out"""
 
         if len(data) % 16 != 0:
             data += ' ' * (16 - len(data) % 16)
         es = AES.new(self.creds.aesKey, AES.MODE_CBC, self.creds.aesIV)
-        return es.encrypt(data)
+        data = es.encrypt(data)
+        data = base64.b64encode(data)
+        return data
+
 
     def Decrypt(self, data):
         """Gibberish comes in, cool data comes out"""
 
+        data = base64.b64decode(data)
         es = AES.new(self.creds.aesKey, AES.MODE_CBC, self.creds.aesIV)
         solved = ""
         try:
             solved = es.decrypt(data)
         except  ValueError:
-            # Debug, pad out the file before decrypting
-            #if len(data) % 16 != 0:
-            #    data += ' ' * (16 - len(data) % 16)
-            #solved = es.decrypt(data)
-            #self.DumpStr(solved)
-
-            stdout.write("Error, cannot decrypt corrupted file. Backup paris.prjrem to avoid overwriting.\n\n")
+            stdout.write("Error, corrupted file.\n\n")
             return "%errorpass:1234123412341234%"
 
         return solved
@@ -156,12 +154,11 @@ class program(object):
 
         data = ""
         try:
-            file = open(self.fileLoc, "r")
-            data = file.read()
-            file.close()
+            with open(self.fileLoc, "r") as file:
+                data += file.read()
         except  IOError:
-            file = open(self.fileLoc, "w")
-            file.close()
+            with open(self.fileLoc, "w") as file:
+                file.write(" ")
             return {}
         
         if len(data) == 0:
@@ -185,9 +182,8 @@ class program(object):
         """Format self.paris to a string, encrypt it, and write to self.fileloc"""
 
         if len(self.paris) == 0:
-            file = open(self.fileLoc, "w")
-            file.write("")
-            file.close()
+            with open(self.fileLoc, "w") as file:
+                file.write(" ")
             return
 
         data = ""
@@ -196,9 +192,8 @@ class program(object):
         
         data = self.Encrypt(data)
 
-        file = open(self.fileLoc, "w")
-        file.write(data)
-        file.close()
+        with open(self.fileLoc, "w") as file:
+                file.write(data)
 
 
     def Make(self, arg_name, arg_value="make"):
@@ -210,7 +205,7 @@ class program(object):
         
         value = ""
         if arg_value == "make":
-            value = self.GetRandomString()
+            value += self.GetRandomString()
             if value == "error":
                 stdout.write("Something went wrong. Could not contact random.org. Sorry\n\n")
                 return
@@ -250,9 +245,4 @@ class program(object):
 
 
     def PrintOptions(self):
-        stdout.write("Displaying commands\n\n" + 
-                             "- make [key]             Creates a new random password and saves it under the specified key\n" + 
-                             "- make [key] [value]     Uses specified value as password and saves it under the specified key\n" + 
-                             "- remove [key]           Deletes a password under the specified key\n" +
-                             "- overview               List all keywords\n" +
-                             "- [key]                  Retrieves a password to the clipboard\n\n")
+        stdout.write("Displaying commands\n\n" + "- make [key]             Creates a new random password and saves it under the specified key\n" + "- make [key] [value]     Uses specified value as password and saves it under the specified key\n" + "- remove [key]           Deletes a password under the specified key\n" + "- overview               List all keywords\n" + "- [key]                  Retrieves a password to the clipboard\n\n")
